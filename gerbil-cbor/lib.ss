@@ -1,12 +1,24 @@
 ;;; -*- Gerbil -*-
 ; Based on RFC 8949: https://www.rfc-editor.org/rfc/rfc8949.html#name-major-types
-(import :std/error
-        :gerbil/gambit
-        :std/io
-        :std/contract
-        :std/misc/bytes
-        :std/sugar)
-(export pack)
+(import
+  (only-in "decoder" default-decoder)
+  :std/error
+  :gerbil/gambit
+  :std/io
+  :std/contract
+  :std/misc/bytes
+  :std/sugar)
+(export pack
+        (struct-out CBORCodec))
+
+(defstruct CBORCodec (encoder decoder) final: #t
+  constructor: :init!)
+
+(defmethod {:init! CBORCodec}
+  (lambda ((encoder default-encoder)
+           (decoder default-decoder))
+    (make-CBORCodec encoder decoder)))
+
 
 (def MAXu8 255)
 (def MAXu16 65535)
@@ -23,13 +35,6 @@
     ((fx<= MAXu32 num)
      'u32)
     (else 'u64)))
-
-(def +majortyperegistry+ (make-vector 256 #f))
-(defrule (def (method major-type) ...)
-  (with-syntax (((tag ...)
-                 (stx-map (lambda (id) (stx-identifier id id "-tag"))
-                          #'(method ...)))
-                (()))))
 
 (def (read-cbor (input (current-input-port)))
   (using (input : BufferedReader)
@@ -51,16 +56,6 @@
               (else (if hook
                       (hook writer obj)
                       (error "incompatible type"))))))
-
-; Handles data item generation by accepting a literal major-type, bitshifting it left,
-; and adding the argument. The arg is assumed to be a natural number that corresponds to
-; the size of the following item. The major type must not be 7
-#;(defrule (write-sized-data-item writer major-type arg-value)
-  (fixnum? major-type)
-  ; TODO: check the 
-  (let* (item (fxarithmetic-shift-left major-type 5))
-    #`(if (fx< 24 arg-value)
-        ())))
 
 ; TODO: there's a lot of space for optimizations here. We allocate a lot more than is
 ; strictly necessary
