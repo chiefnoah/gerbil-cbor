@@ -67,8 +67,8 @@
   (register 0 27 read-u64)
   (register-range 0 28 31 malformed-message)
   ; negative integers
-  (register-range 1 0 23 extract-raw-arg)
-  (register 1 24 read-u8)
+  (register-range 1 0 23 (lambda (item buf) (fx- -1 (extract-raw-arg item buf))))
+  (register 1 24 (lambda (item buf) (- (read-u8 item buf))))
   (register 1 25 read-u16)
   (register 1 26 read-u32)
   (register 1 27 read-u64)
