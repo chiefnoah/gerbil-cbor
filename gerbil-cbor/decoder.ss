@@ -3,6 +3,7 @@
         :std/contract
         :std/iter
         :std/format
+        :std/text/utf8
         :std/io)
 (export default-decoder)
 
@@ -33,7 +34,6 @@
             (for (i (in-range start (fx+ 1 stop)))
                  (register major-type i method))))
 
-#;(default-decoder (open-buffered-reader #u8(18 20)))
 (def (default-decoder buffer)
      (using (buffer : BufferedReader)
             ; read the first item
@@ -44,18 +44,52 @@
 (def (malformed-message item _)
   (error "Malformed message with initial byte " item))
 
-(def (read-u8 item buf)
+(def (read-u8 _ buf)
   (using (buf :- BufferedReader)
     (buf.read-u8!)))
-(def (read-u16 item buf)
+(def (read-u16 _ buf)
      (using (buf :- BufferedReader)
             (buf.read-u16)))
-(def (read-u32 item buf)
+(def (read-u32 _ buf)
      (using (buf :- BufferedReader)
             (buf.read-u32)))
-(def (read-u64 item buf)
+(def (read-u64 _ buf)
      (using (buf :- BufferedReader)
             (buf.read-u64)))
+
+(def (read-list item buf f (decoder default-decoder))
+  (let f ((count (f item buf))
+          (item (decoder buf)))
+    (if (= 1 count)
+      ; properly terminate the list
+      (cons item '())
+      (cons item (f (1- count)
+                    (decoder buf))))))
+
+; only the value associated with the *last* instance of a key is returned. That is,
+; if there are duplicates, we overwrite any existing keys.
+(def (read-map item buf f (decoder default-decoder) (table (make-hash-table)))
+     (let f ((count (1- (f item buf)))
+             (key (decoder buf))
+             (value (decoder buf)))
+       (begin
+         (hash-put! table key value)
+         (when (positive? count)
+           (f (1- count)
+              table
+              (decoder buf)
+              (decoder buf))))))
+
+; TODO: do this without copying the buffer
+(def (read-utf8-string item buf f)
+  (utf8->string (read-bytes item buf f)))
+
+(def (read-bytes item buf f)
+     (using (buf :- BufferedReader)
+            (let* ((count (f item buf))
+                   (bytebuffer (make-u8vector count))
+                   (readcount (Reader-read buf bytebuffer)))
+              bytebuffer)))
 
 ; Set up the jump table for decoding
 (begin
@@ -68,40 +102,36 @@
   (register-range 0 28 31 malformed-message)
   ; negative integers
   (register-range 1 0 23 (lambda (item buf) (fx- -1 (extract-raw-arg item buf))))
-  (register 1 24 (lambda (item buf) (- (read-u8 item buf))))
-  (register 1 25 read-u16)
-  (register 1 26 read-u32)
-  (register 1 27 read-u64)
+  (register 1 24 (lambda (item buf) (fx- -1 (read-u8 item buf))))
+  (register 1 25 (lambda (item buf) (fx- -1 (read-u16 item buf))))
+  (register 1 26 (lambda (item buf) (fx- -1 (read-u32 item buf))))
+  (register 1 27 (lambda (item buf) (- -1 (read-u64 item buf))))
   (register-range 1 28 31 malformed-message)
   ; byte strings
-  ; TODO: implement extracting byte slice from here instead of just reading arg
-  (register-range 2 0 23 extract-raw-arg)
-  (register 2 24 read-u8)
-  (register 2 25 read-u16)
-  (register 2 26 read-u32)
-  (register 2 27 read-u64)
+  (register-range 2 0 23 (cut read-bytes <> <> extract-raw-arg))
+  (register 2 24 (cut read-bytes <> <> read-u8))
+  (register 2 25 (cut read-bytes <> <> read-u16))
+  (register 2 26 (cut read-bytes <> <> read-u32))
+  (register 2 27 (cut read-bytes <> <> read-u64))
   ; TODO: this actually should indicate an indefinite length message
   (register-range 2 28 31 malformed-message)
   ; utf-8 strings
-  ; TODO: implement decoding utf-8 instead of just getting the length
-  (register-range 3 0 23 extract-raw-arg)
-  (register 3 24 read-u8)
-  (register 3 25 read-u16)
-  (register 3 26 read-u32)
-  (register 3 27 read-u64)
+  (register-range 3 0 23 (cut read-utf8-string <> <> extract-raw-arg))
+  (register 3 24 (cut read-utf8-string <> <> read-u8))
+  (register 3 25 (cut read-utf8-string <> <> read-u16))
+  (register 3 26 (cut read-utf8-string <> <> read-u32))
+  (register 3 27 (cut read-utf8-string <> <> read-u64))
   ; TODO: this actually should indicate an indefinite length message
   (register-range 3 28 31 malformed-message)
   ; array
-  ; TODO: implement handling of array members
-  (register-range 4 0 23 extract-raw-arg)
-  (register 4 24 read-u8)
-  (register 4 25 read-u16)
-  (register 4 26 read-u32)
-  (register 4 27 read-u64)
+  (register-range 4 0 23 (cut read-list <> <> extract-raw-arg))
+  (register 4 24 (cut read-list <> <> read-u8))
+  (register 4 25 (cut read-list <> <> read-u16))
+  (register 4 26 (cut read-list <> <> read-u32))
+  (register 4 27 (cut read-list <> <> read-u64))
   ; TODO: this actually should indicate an indefinite length message
   (register-range 4 28 31 malformed-message)
   ; map
-  ; TODO: implement handling of mapping members
   (register-range 5 0 23 extract-raw-arg)
   (register 5 24 read-u8)
   (register 5 25 read-u16)
@@ -111,11 +141,11 @@
   (register-range 5 28 31 malformed-message)
   ; tagged data items
   ; TODO: handle tags
-  (register-range 6 0 23 extract-raw-arg)
-  (register 6 24 read-u8)
-  (register 6 25 read-u16)
-  (register 6 26 read-u32)
-  (register 6 27 read-u64)
+  (register-range 6 0 23 (cut read-map <> <> extract-raw-arg))
+  (register 6 24 (cut read-map <> <> read-u8))
+  (register 6 25 (cut read-map <> <> read-u16))
+  (register 6 26 (cut read-map <> <> read-u32))
+  (register 6 27 (cut read-map <> <> read-u64))
   (register-range 6 28 31 malformed-message)
   ; floating point and others...
   ; TODO: hanlde floats and other data items
