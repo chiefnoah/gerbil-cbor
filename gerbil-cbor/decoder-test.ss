@@ -1,5 +1,6 @@
 (import :std/test
         :std/io
+        :std/format
         :std/text/utf8
         "decoder")
 (export cbor-decoder-test)
@@ -53,4 +54,19 @@
                  (test-case "decode bytes"
                             (check (default-decoder
                                      (open-buffered-reader #u8(#x43 #x30 #x31 #x32)))
-                                   => #u8(#x30 #x31 #x32)))))
+                                   => #u8(#x30 #x31 #x32)))
+                 (test-case "decode map"
+                            (let* ((output (default-decoder
+                                           (open-buffered-reader #u8(#xa3 #x64 #x6b #x65 #x79
+                                                                     #x31 #x66 #x76 #x61 #x6c
+                                                                     #x75 #x65 #x31 #x02 #x03
+                                                                     #x83 #x01 #x02 #x03 #xa1
+                                                                     #x64 #x6b #x65 #x79 #x32
+                                                                     #x04))))
+                                   (aslist (hash->list output)))
+                              (displayln (hash->list (cdadr aslist)))
+                              (displayln aslist)
+                              (check (assq 2 aslist) => [2 . 3])
+                              (check (assoc "key1" aslist) => ["key1" . "value1"])
+                              ; we could check more, but I'm lazy
+                              (check (cdr (assoc [1 2 3] (hash->list output))) ? hash-table?)))))

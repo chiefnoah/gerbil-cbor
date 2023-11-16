@@ -74,11 +74,11 @@
              (value (decoder buf)))
        (begin
          (hash-put! table key value)
-         (when (positive? count)
+         (if (positive? count)
            (f (1- count)
-              table
               (decoder buf)
-              (decoder buf))))))
+              (decoder buf))
+           table))))
 
 ; TODO: do this without copying the buffer
 (def (read-utf8-string item buf f)
@@ -132,11 +132,11 @@
   ; TODO: this actually should indicate an indefinite length message
   (register-range 4 28 31 malformed-message)
   ; map
-  (register-range 5 0 23 extract-raw-arg)
-  (register 5 24 read-u8)
-  (register 5 25 read-u16)
-  (register 5 26 read-u32)
-  (register 5 27 read-u64)
+  (register-range 5 0 23 (cut read-map <> <> extract-raw-arg))
+  (register 5 24 (cut read-map <> <> read-u8))
+  (register 5 25 (cut read-map <> <> read-u16))
+  (register 5 26 (cut read-map <> <> read-u32))
+  (register 5 27 (cut read-map <> <> read-u64))
   ; TODO: this actually should indicate an indefinite length message
   (register-range 5 28 31 malformed-message)
   ; tagged data items
@@ -158,7 +158,7 @@
   (register 7 31 (lambda (_) ('END))))
 ; validates that this works
 #;(for ((item (iter +unmarshal+))
-      (i (in-iota 256)))
+        (i (in-iota 256)))
      (begin
        (displayln (format "~a=~a" i item))
        (when (not item)
