@@ -64,8 +64,6 @@
                                                                      #x64 #x6b #x65 #x79 #x32
                                                                      #x04))))
                                    (aslist (hash->list output)))
-                              (displayln (hash->list (cdadr aslist)))
-                              (displayln aslist)
                               (check (assq 2 aslist) => [2 . 3])
                               (check (assoc "key1" aslist) => ["key1" . "value1"])
                               ; we could check more, but I'm lazy
