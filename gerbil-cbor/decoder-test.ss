@@ -67,4 +67,8 @@
                               (check (assq 2 aslist) => [2 . 3])
                               (check (assoc "key1" aslist) => ["key1" . "value1"])
                               ; we could check more, but I'm lazy
-                              (check (cdr (assoc [1 2 3] (hash->list output))) ? hash-table?)))))
+                              (check (cdr (assoc [1 2 3] (hash->list output))) ? hash-table?)))
+                 (test-case "decode double/fl64"
+                            (check (default-decoder
+                                     (open-buffered-reader #u8(#xfb #x40 #xa #x66 #x66 #x66 #x66 #x66 #x66)))
+                                   => 3.3))))

@@ -3,19 +3,34 @@
         :std/contract
         :std/iter
         :std/format
+        :std/misc/bytes
         :std/text/utf8
         :std/io)
-(export default-decoder)
+(export default-decoder current-decoder current-tag-handler)
 
 (def +unmarshal+ (make-vector 256 #f))
+
+(def (default-decoder buffer)
+     (using (buffer : BufferedReader)
+            ; read the first item
+            (let* ((item (buffer.read-u8!))
+                   (decode-method (vector-ref +unmarshal+ item)))
+              (decode-method item buffer))))
+
+; The default tag handler strips the tag from the underlying value and returns it
+(def (default-tag-handler tag item)
+  item)
+
+(def current-decoder (make-parameter default-decoder))
+(def current-tag-handler (make-parameter default-tag-handler))
 
 ; handles formatting major type argument literals into byte
 (def (data-item major-type arg)
      (let* ((out (fx+ (fxarithmetic-shift-left major-type 5)
                       arg))
-            (bitcount (##fxbit-count out)))
-       (if (fx> bitcount 8)
-         (error "major type or arg too large. Bit count: " bitcount)
+            (bitlength (##fxlength out)))
+       (if (fx> bitlength 8)
+         (error "major type or arg too large. Bit count: " bitlength)
          out)))
 
 (def (extract-raw-arg item buf)
@@ -34,13 +49,6 @@
             (for (i (in-range start (fx+ 1 stop)))
                  (register major-type i method))))
 
-(def (default-decoder buffer)
-     (using (buffer : BufferedReader)
-            ; read the first item
-            (let* ((item (buffer.read-u8!))
-                   (decode-method (vector-ref +unmarshal+ item)))
-              (decode-method item buffer))))
-
 (def (malformed-message item _)
   (error "Malformed message with initial byte " item))
 
@@ -58,7 +66,7 @@
             (buf.read-u64)))
 
 ; Reads a list from the buffered and decodes it recursively
-(def (read-list item buf f (decoder default-decoder))
+(def (read-list item buf f (decoder (current-decoder)))
   (let f ((count (f item buf))
           (item (decoder buf)))
     (if (= 1 count)
@@ -69,7 +77,7 @@
 
 ; only the value associated with the *last* instance of a key is returned. That is,
 ; if there are duplicates, we overwrite any existing keys.
-(def (read-map item buf f (decoder default-decoder) (table (make-hash-table)))
+(def (read-map item buf f (decoder (current-decoder)) (table (make-hash-table)))
      (let f ((count (1- (f item buf)))
              (key (decoder buf))
              (value (decoder buf)))
@@ -94,6 +102,43 @@
 
 (def (read-negative item buf f)
   (fx- -1 (f item buf)))
+
+(def (read-f32 item buf)
+  (using (buf :- BufferedReader)
+         (let* ((bytebuffer (make-u8vector 4))
+                (readcount (buf.read bytebuffer)))
+           (u8vector-float-ref bytebuffer 0 big))))
+
+(def (read-f64 item buf)
+  (using (buf :- BufferedReader)
+         (let* ((bytebuffer (make-u8vector 8))
+                (readcount (buf.read bytebuffer)))
+           (u8vector-double-ref bytebuffer 0 big))))
+
+; Converts a u16 in IEEE 754 FP16 format to a float (single precision)
+(def (u16->float half)
+     (let* ((exponent (fxand (fxarithmetic-shift-right half 10) #x1f))
+            (mantissa (fxand half #x3ff))
+            (val (cond
+                   ((fxzero? exponent)
+                    (fl* mantissa (fx- (fxarithmetic-shift-right 1 20))))
+                   ((not (fx= exponent 31))
+                    (fl* (fx+ mantissa 1024) (expt 2 (fx- exponent 24))))
+                   ((fxzero? mantissa)
+                    (+inf.0))
+                   (else
+                     (-inf.0)))))
+       (if (fxbit-set? 15 half)
+         (- val)
+         (val))))
+
+(def (read-f16 item buf)
+     (u16->float (read-u16 item buf)))
+
+(def (read-tag item buf f (decoder (current-decoder)) (tag-handler (current-tag-handler)))
+  (let* ((tag-num (f item buf))
+         (val (current-decoder buf)))
+    (tag-handler tag-num val)))
 
 (defrule (des f r)
   (lambda (item buf)
@@ -162,16 +207,9 @@
   ; TODO: hanlde floats and other data items
   (register-range 7 0 23 extract-raw-arg)
   (register 7 24 read-u8)
-  (register 7 25 read-u16)
-  (register 7 26 read-u32)
-  (register 7 27 read-u64)
+  (register 7 25 (lambda (item _) (error "Half-precision values are not supported." item)))
+  (register 7 26 read-f32)
+  (register 7 27 read-f64)
   (register-range 7 28 30 malformed-message)
   ; The special end terminator for indefinite-length data types
   (register 7 31 (lambda (_ _) ('END))))
-; validates that this works
-#;(for ((item (iter +unmarshal+))
-        (i (in-iota 256)))
-     (begin
-       (displayln (format "~a=~a" i item))
-       (when (not item)
-         (error "Unset item in +unmarshal+"))))
