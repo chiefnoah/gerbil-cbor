@@ -207,7 +207,7 @@
   ; TODO: hanlde floats and other data items
   (register-range 7 0 23 extract-raw-arg)
   (register 7 24 read-u8)
-  (register 7 25 (lambda (item _) (error "Half-precision values are not supported." item)))
+  (register 7 25 read-f16)
   (register 7 26 read-f32)
   (register 7 27 read-f64)
   (register-range 7 28 30 malformed-message)
