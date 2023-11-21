@@ -71,4 +71,26 @@
                  (test-case "decode double/fl64"
                             (check (default-decoder
                                      (open-buffered-reader #u8(#xfb #x40 #xa #x66 #x66 #x66 #x66 #x66 #x66)))
-                                   => 3.3))))
+                                   => 3.3))
+                 (test-case "decode tagged item default"
+                            (check (default-decoder
+                                     (open-buffered-reader #u8(#xd8 #x7b #x19 #x1 #xc8)))
+                                   => 456))
+                 (test-case "decode tagged item custom"
+                            (parameterize ((current-tag-handler (lambda (tag item)
+                                                                         [tag . item])))
+                              (check (default-decoder
+                                       (open-buffered-reader #u8(#xd8 #x7b #x19 #x1
+                                                                 #xc8))) => [123 . 456])))
+                 (test-case "decode simple boolean true"
+                            (check (default-decoder
+                                     (open-buffered-reader #u8(#xf5))) => #t))
+                 (test-case "decode simple boolean false"
+                            (check (default-decoder
+                                     (open-buffered-reader #u8(#xf4))) => #f))
+                 (test-case "decode simple void"
+                            (check (default-decoder
+                                     (open-buffered-reader #u8(#xf6))) ? void?))
+                 (test-case "decode simple undefined"
+                            (check (default-decoder
+                                     (open-buffered-reader #u8(#xf7))) ? void?))))

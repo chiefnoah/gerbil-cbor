@@ -6,7 +6,9 @@
         :std/misc/bytes
         :std/text/utf8
         :std/io)
-(export default-decoder current-decoder current-tag-handler)
+(export default-decoder current-decoder current-tag-handler max-indefinite-item)
+
+(def max-indefinite-item (make-parameter 1024))
 
 (def +unmarshal+ (make-vector 256 #f))
 
@@ -18,7 +20,7 @@
               (decode-method item buffer))))
 
 ; The default tag handler strips the tag from the underlying value and returns it
-(def (default-tag-handler tag item)
+(def (default-tag-handler _ item)
   item)
 
 (def current-decoder (make-parameter default-decoder))
@@ -66,28 +68,46 @@
             (buf.read-u64)))
 
 ; Reads a list from the buffered and decodes it recursively
-(def (read-list item buf f (decoder (current-decoder)))
+(def (read-list item buf f)
   (let f ((count (f item buf))
-          (item (decoder buf)))
-    (if (= 1 count)
+          (item ((current-decoder) buf)))
+    (if (fx= 1 count)
       ; properly terminate the list
       (cons item '())
       (cons item (f (1- count)
-                    (decoder buf))))))
+                    ((current-decoder) buf))))))
+
+(def (read-indefinite-list item buf (count 0))
+     (when (fx> count (max-indefinite-item))
+       (error "Exceeded max indefinite item allocation of " (max-indefinite-item)))
+     (let (item ((current-decoder) buf))
+       (if (eq? item 'BREAK)
+         (cons '())
+         (cons item (read-indefinite-list item buf (1+ count))))))
 
 ; only the value associated with the *last* instance of a key is returned. That is,
 ; if there are duplicates, we overwrite any existing keys.
-(def (read-map item buf f (decoder (current-decoder)) (table (make-hash-table)))
+(def (read-map item buf f (table (make-hash-table)))
      (let f ((count (1- (f item buf)))
-             (key (decoder buf))
-             (value (decoder buf)))
+             (key ((current-decoder) buf))
+             (value ((current-decoder) buf)))
        (begin
          (hash-put! table key value)
          (if (positive? count)
            (f (1- count)
-              (decoder buf)
-              (decoder buf))
+              ((current-decoder) buf)
+              ((current-decoder) buf))
            table))))
+
+(def (read-indefinite-map item buf (table (make-hash-table)) (count 0))
+     (when (fx> count (max-indefinite-item))
+       (error "Exceeded max indefinite item allocation of " (max-indefinite-item)))
+     (let (key ((current-decoder) buf))
+       (if (not (eq? key 'BREAK))
+         (begin
+           (hash-put! table key ((current-decoder) buf))
+           (read-indefinite-map item buf table (1+ count)))
+         table)))
 
 ; TODO: do this without copying the buffer
 (def (read-utf8-string item buf f)
@@ -135,10 +155,23 @@
 (def (read-f16 item buf)
      (u16->float (read-u16 item buf)))
 
-(def (read-tag item buf f (decoder (current-decoder)) (tag-handler (current-tag-handler)))
+(def (read-tag item buf f)
   (let* ((tag-num (f item buf))
-         (val (current-decoder buf)))
-    (tag-handler tag-num val)))
+         (val ((current-decoder) buf)))
+    ((current-tag-handler) tag-num val)))
+
+(def (read-simple item buf f)
+  (match (f item buf)
+    ((? (in-range? 0 19))
+     (error "Unassigned simple value in range 0 to 19"))
+    ((eq? 20) #f)
+    ((eq? 21) #t)
+    ((eq? 22) (void))
+    ((eq? 23) (void))
+    ((? (in-range? 23 31))
+     (error "Simple values in range 23 31 are unimplemented"))
+    ((? (in-range? 32 255))
+     (error "Simple values in range 32 255 are unassigned."))))
 
 (defrule (des f r)
   (lambda (item buf)
@@ -179,37 +212,35 @@
   (register 3 27 (des read-utf8-string read-u64))
   ; TODO: this actually should indicate an indefinite length message
   (register-range 3 28 31 malformed-message)
-  ; array
+  ; lists
   (register-range 4 0 23 (des read-list extract-raw-arg))
   (register 4 24 (des read-list read-u8))
   (register 4 25 (des read-list read-u16))
   (register 4 26 (des read-list read-u32))
   (register 4 27 (des read-list read-u64))
-  ; TODO: this actually should indicate an indefinite length message
-  (register-range 4 28 31 malformed-message)
+  (register-range 4 28 31 read-indefinite-list)
   ; map
   (register-range 5 0 23 (des read-map extract-raw-arg))
   (register 5 24 (des read-map read-u8))
   (register 5 25 (des read-map read-u16))
   (register 5 26 (des read-map read-u32))
   (register 5 27 (des read-map read-u64))
-  ; TODO: this actually should indicate an indefinite length message
-  (register-range 5 28 31 malformed-message)
+  (register-range 5 28 31 read-indefinite-map)
   ; tagged data items
   ; TODO: handle tags
-  (register-range 6 0 23 (des read-map extract-raw-arg))
-  (register 6 24 (des read-map read-u8))
-  (register 6 25 (des read-map read-u16))
-  (register 6 26 (des read-map read-u32))
-  (register 6 27 (des read-map read-u64))
+  (register-range 6 0 23 (des read-tag extract-raw-arg))
+  (register 6 24 (des read-tag read-u8))
+  (register 6 25 (des read-tag read-u16))
+  (register 6 26 (des read-tag read-u32))
+  (register 6 27 (des read-tag read-u64))
   (register-range 6 28 31 malformed-message)
   ; floating point and others...
   ; TODO: hanlde floats and other data items
-  (register-range 7 0 23 extract-raw-arg)
-  (register 7 24 read-u8)
+  (register-range 7 0 23 (des read-simple extract-raw-arg))
+  (register 7 24 (des read-simple read-u8))
   (register 7 25 read-f16)
   (register 7 26 read-f32)
   (register 7 27 read-f64)
   (register-range 7 28 30 malformed-message)
   ; The special end terminator for indefinite-length data types
-  (register 7 31 (lambda (_ _) ('END))))
+  (register 7 31 (lambda (_ _) 'BREAK)))
