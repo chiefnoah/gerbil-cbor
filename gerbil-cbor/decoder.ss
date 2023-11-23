@@ -5,12 +5,15 @@
         :std/format
         :std/misc/bytes
         :std/text/utf8
+        "util"
+        (for-syntax "util")
         :std/io)
 (export default-decoder current-decoder current-tag-handler max-indefinite-item)
 
 (def max-indefinite-item (make-parameter 1024))
 
 (def +unmarshal+ (make-vector 256 #f))
+
 
 (def (default-decoder buffer)
      (using (buffer : BufferedReader)
@@ -26,14 +29,11 @@
 (def current-decoder (make-parameter default-decoder))
 (def current-tag-handler (make-parameter default-tag-handler))
 
-; handles formatting major type argument literals into byte
-(def (data-item major-type arg)
-     (let* ((out (fx+ (fxarithmetic-shift-left major-type 5)
-                      arg))
-            (bitlength (##fxlength out)))
-       (if (fx> bitlength 8)
-         (error "major type or arg too large. Bit count: " bitlength)
-         out)))
+(defsyntax (data-item-constant stx)
+           (syntax-case stx ()
+                        ((_ major-type arg)
+                         (and (stx-fixnum? #'major-type) (stx-fixnum? #'arg))
+                         (data-item #'major-type #'arg))))
 
 (def (extract-raw-arg item buf)
      (using ((item :~ fixnum?)
@@ -120,6 +120,16 @@
                    (readcount (Reader-read buf bytebuffer)))
               bytebuffer)))
 
+; TODO: indefinite-length bytes
+(def (read-indefinite-bytes item buf (count 0))
+     (using (buf :- BufferedReader)
+            (let (item (buf.read-u8!))
+              (match item
+                ((? fx= (data-item 7 31))
+                 '())
+                ; byte chunk, to be concatenated
+                ((? fx= (data-item )))))))
+
 (def (read-negative item buf f)
   (fx- -1 (f item buf)))
 
@@ -202,7 +212,7 @@
   (register 2 25 (des read-bytes read-u16))
   (register 2 26 (des read-bytes read-u32))
   (register 2 27 (des read-bytes read-u64))
-  ; TODO: this actually should indicate an indefinite length message
+  ; TODO: this actually should indicate an indefinite length byte string
   (register-range 2 28 31 malformed-message)
   ; utf-8 strings
   (register-range 3 0 23 (des read-utf8-string extract-raw-arg))
@@ -210,7 +220,7 @@
   (register 3 25 (des read-utf8-string read-u16))
   (register 3 26 (des read-utf8-string read-u32))
   (register 3 27 (des read-utf8-string read-u64))
-  ; TODO: this actually should indicate an indefinite length message
+  ; TODO: this actually should indicate an indefinite length text string
   (register-range 3 28 31 malformed-message)
   ; lists
   (register-range 4 0 23 (des read-list extract-raw-arg))
