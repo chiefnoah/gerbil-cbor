@@ -121,14 +121,28 @@
               bytebuffer)))
 
 ; TODO: indefinite-length bytes
-(def (read-indefinite-bytes item buf (count 0))
+(def (read-indefinite-bytes item buf)
      (using (buf :- BufferedReader)
-            (let (item (buf.read-u8!))
-              (match item
-                ((? fx= (data-item 7 31))
-                 '())
-                ; byte chunk, to be concatenated
-                ((? fx= (data-item )))))))
+            (u8vector-concatenate
+              (let f ((item (buf.read-u8!))
+                      (count 0))
+                (when (fx> count (max-indefinite-item))
+                  (error "Exceeded max indefinite item allocation of " (max-indefinite-item)))
+                (cond
+                  ((fx= item (data-item 2 31))
+                   (if (fx> count 0)
+                     (error "Found indefinite-length byte string while already decoding indefinite-length byte string. Malformed message." item)
+                     (f (buf.read-u8!)
+                        count)))
+                  ((fx= item (data-item 7 31))
+                   '())
+                  ; byte chunk, to be concatenated
+                  (((in-range? (data-item 2 0) (data-item 2 27)) item)
+                   (cons ((vector-ref +unmarshal+ item) item buf)
+                         (f (buf.read-u8!)
+                            (1+ count))))
+                  (else (error "Invalid data item while reading indefinite-length
+                               byte string" item)))))))
 
 (def (read-negative item buf f)
   (fx- -1 (f item buf)))
@@ -213,7 +227,7 @@
   (register 2 26 (des read-bytes read-u32))
   (register 2 27 (des read-bytes read-u64))
   ; TODO: this actually should indicate an indefinite length byte string
-  (register-range 2 28 31 malformed-message)
+  (register-range 2 28 31 read-indefinite-bytes)
   ; utf-8 strings
   (register-range 3 0 23 (des read-utf8-string extract-raw-arg))
   (register 3 24 (des read-utf8-string read-u8))

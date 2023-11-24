@@ -93,4 +93,10 @@
                                      (open-buffered-reader #u8(#xf6))) ? void?))
                  (test-case "decode simple undefined"
                             (check (default-decoder
-                                     (open-buffered-reader #u8(#xf7))) ? void?))))
+                                     (open-buffered-reader #u8(#xf7))) ? void?))
+                 (test-case "decode indefinite length byte string"
+                            (check (default-decoder
+                                     (open-buffered-reader #u8(#x5f
+                                                               #x44 #xaa #xbb #xcc #xdd
+                                                               #x43 #xee #xff #x99
+                                                               #xff))) => #u8(#xaa #xbb #xcc #xdd #xee #xff #x99)))))
