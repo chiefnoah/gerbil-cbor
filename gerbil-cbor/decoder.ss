@@ -14,26 +14,18 @@
 
 (def +unmarshal+ (make-vector 256 #f))
 
-
 (def (default-decoder buffer)
      (using (buffer : BufferedReader)
             ; read the first item
             (let* ((item (buffer.read-u8!))
                    (decode-method (vector-ref +unmarshal+ item)))
               (decode-method item buffer))))
+(def current-decoder (make-parameter default-decoder))
 
 ; The default tag handler strips the tag from the underlying value and returns it
 (def (default-tag-handler _ item)
   item)
-
-(def current-decoder (make-parameter default-decoder))
 (def current-tag-handler (make-parameter default-tag-handler))
-
-(defsyntax (data-item-constant stx)
-           (syntax-case stx ()
-                        ((_ major-type arg)
-                         (and (stx-fixnum? #'major-type) (stx-fixnum? #'arg))
-                         (data-item #'major-type #'arg))))
 
 (def (extract-raw-arg item buf)
      (using ((item :~ fixnum?)
@@ -129,15 +121,15 @@
                 (when (fx> count (max-indefinite-item))
                   (error "Exceeded max indefinite item allocation of " (max-indefinite-item)))
                 (cond
-                  ((fx= item (data-item 2 31))
+                  ((fx= item (data-item/const 2 31))
                    (if (fx> count 0)
                      (error "Found indefinite-length byte string while already decoding indefinite-length byte string. Malformed message." item)
                      (f (buf.read-u8!)
                         count)))
-                  ((fx= item (data-item 7 31))
+                  ((fx= item (data-item/const 7 31))
                    '())
                   ; byte chunk, to be concatenated
-                  (((in-range? (data-item 2 0) (data-item 2 27)) item)
+                  (((in-range? (data-item/const 2 0) (data-item/const 2 27)) item)
                    (cons ((vector-ref +unmarshal+ item) item buf)
                          (f (buf.read-u8!)
                             (1+ count))))
@@ -146,27 +138,27 @@
 
 (def (read-indefinite-text item buf)
      (using (buf :- BufferedReader)
-            (u8vector-concatenate
+            (string-join
               (let f ((item (buf.read-u8!))
                       (count 0))
                 (when (fx> count (max-indefinite-item))
                   (error "Exceeded max indefinite item allocation of " (max-indefinite-item)))
                 (cond
-                  ((fx= item (data-item 3 31))
+                  ((fx= item (data-item/const 3 31))
                    (if (fx> count 0)
                      (error "Found indefinite-length text string while already decoding indefinite-length text string. Malformed message." item)
                      (f (buf.read-u8!)
                         count)))
-                  ((fx= item (data-item 7 31))
+                  ((fx= item (data-item/const 7 31))
                    '())
                   ; byte chunk, to be concatenated
-                  (((in-range? (data-item 3 0) (data-item 3 27)) item)
+                  (((in-range? (data-item/const 3 0) (data-item/const 3 27)) item)
                    ; TODO: don't rely on the default decoder for this
                    (cons ((vector-ref +unmarshal+ item) item buf)
                          (f (buf.read-u8!)
                             (1+ count))))
                   (else (error "Invalid data item while reading indefinite-length
-                               byte string" item)))))))
+                               byte string" item)))) " ")))
 
 
 (def (read-negative item buf f)
@@ -213,14 +205,15 @@
   (match (f item buf)
     ((? (in-range? 0 19))
      (error "Unassigned simple value in range 0 to 19"))
-    ((eq? 20) #f)
-    ((eq? 21) #t)
-    ((eq? 22) (void))
-    ((eq? 23) (void))
-    ((? (in-range? 23 31))
-     (error "Simple values in range 23 31 are unimplemented"))
+    (20 #f)
+    (21 #t)
+    (22 (void))
+    (23 (void))
+    ((? (in-range? 24 31))
+     (error "Simple values in range 23 31 are reserved and unimplemented."))
     ((? (in-range? 32 255))
-     (error "Simple values in range 32 255 are unassigned."))))
+     (error "Simple values in range 32 255 are unassigned."))
+    (else (error "wtf!?"))))
 
 (defrule (des f r)
   (lambda (item buf)
@@ -293,3 +286,5 @@
   (register-range 7 28 30 malformed-message)
   ; The special end terminator for indefinite-length data types
   (register 7 31 (lambda (_ _) 'BREAK)))
+
+
