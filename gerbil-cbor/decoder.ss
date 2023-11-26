@@ -207,8 +207,10 @@
      (error "Unassigned simple value in range 0 to 19"))
     (20 #f)
     (21 #t)
-    (22 '())
-    (23 (void))
+    ; null
+    (22 (void))
+    ; undefined
+    (23 'undefined)
     ((? (in-range? 24 31))
      (error "Simple values in range 23 31 are reserved and unimplemented."))
     ((? (in-range? 32 255))
