@@ -74,7 +74,7 @@
        (error "Exceeded max indefinite item allocation of " (max-indefinite-item)))
      (let (item ((current-decoder) buf))
        (if (eq? item 'BREAK)
-         (cons '())
+         '()
          (cons item (read-indefinite-list item buf (1+ count))))))
 
 ; only the value associated with the *last* instance of a key is returned. That is,

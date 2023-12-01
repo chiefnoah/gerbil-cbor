@@ -31,14 +31,17 @@
      (using (buf : BufferedWriter)
             (match-encoder buf item
               (number? write-number)
-              (null? write-null)
+              (boolean? write-bool)
+              (void? write-null)
+              ((cut eq? <> 'undefined) write-undefined)
               (hash-table? write-hashmap)
               (u8vector? write-u8vector)
               (vector? write-vector)
               (string? write-string)
+              ; These all have O(n) complexity
+              (##proper-list? write-list)
               (alist? write-alist)
               (cbor-tag? write-tag)
-              (##proper-list? write-list)
               (else ((current-hook) buf item)))))
 
 (def current-encoder (make-parameter default-encoder))
@@ -57,27 +60,22 @@
      4)
     (else 8)))
 
-(defrule (match-for-int-size writer major-type item int-bytes item-bytes (size type-arg) ...)
+(defrule (match-for-int-size writer major-type item (size type-arg) ...)
          (match (smallest-int-container item)
                 (size (begin
                         (BufferedWriter-write-u8 writer (data-item major-type type-arg))
-                        (BufferedWriter-write writer int-bytes)
-                        (let (padded-bytes (fx- size item-bytes))
-                          (when (fxpositive? padded-bytes)
-                            (BufferedWriter-write writer (make-u8vector padded-bytes 0)))))) ...))
+                        (BufferedWriter-write writer (uint->u8vector item big size)))) ...))
 
 (def (write-positive-uint writer major-type item)
      (using ((writer :- BufferedWriter)
              (item :~ fixnum?))
        (if (fx< item 24)
-         (writer.write-u8 (data-item 0 item))
-         (let* ((int-bytes (uint->u8vector item))
-                (itembytes (u8vector-length int-bytes)))
-           (match-for-int-size writer major-type item int-bytes itembytes
+         (writer.write-u8 (data-item major-type item))
+         (match-for-int-size writer major-type item
              (1 24)
              (2 25)
              (4 26)
-             (8 27))))))
+             (8 27)))))
 
 (def (write-number writer item)
      (using ((writer :- BufferedWriter)
@@ -102,7 +100,7 @@
           ; this is probably O(n)
           (item :~ ##proper-list?))
     (writer.write-u8 (data-item 4 31))
-    (for-each encoder item)
+    (for-each (cut encoder writer <>) item)
     ; terminate the indefinite sequence
     (writer.write-u8 (data-item 7 31))))
 
@@ -116,7 +114,7 @@
   (using ((writer :- BufferedWriter)
           (item :~ vector?))
     (write-positive-uint writer 4 (vector-length item))
-    (vector-for-each encoder)))
+    (vector-for-each (cut encoder writer <>) item)))
 
 (def (write-hashmap writer item (encoder (current-encoder)))
   (using ((writer :- BufferedWriter)
@@ -141,7 +139,7 @@
   (using ((writer :- BufferedWriter)
           (item :~ string?))
     (write-positive-uint writer 3 (string-length item))
-    (writer.write-u8 (string->utf8 item))))
+    (writer.write (string->utf8 item))))
 
 (def (write-bool writer item)
   (using ((writer :- BufferedWriter)
@@ -155,8 +153,12 @@
 
 (def (write-null writer item)
   (using ((writer :- BufferedWriter)
-          (item :~ null?))
+          (item :~ void?))
     (writer.write-u8 (data-item 7 22))))
+
+(def (write-undefined writer _)
+  (using (writer :- BufferedWriter)
+    (writer.write-u8 (data-item 7 23))))
 
 (def (write-tag writer item (encoder (current-encoder)))
   (using ((writer :- BufferedWriter)
