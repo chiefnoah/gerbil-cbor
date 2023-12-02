@@ -1,5 +1,6 @@
 (import
   :std/sugar
+  :std/misc/list
   :std/contract
   "util"
   :std/io
@@ -8,14 +9,11 @@
   :std/misc/bytes
   :std/error
   :std/text/utf8)
-(export default-encoder current-encoder (struct-out cbor-tag))
+(export default-encoder current-encoder default-hook current-hook)
 
 (defrule (match-encoder writer item (predicate encode) ... rest)
   (match item
     ((? predicate) (encode writer item)) ... rest))
-
-(defstruct cbor-tag (tag item)
-  final: #t)
 
 (def (default-hook writer item (encoder (current-encoder)))
      (using (writer :- BufferedWriter)
@@ -38,10 +36,10 @@
               (u8vector? write-u8vector)
               (vector? write-vector)
               (string? write-string)
-              ; These all have O(n) complexity
-              (##proper-list? write-list)
-              (alist? write-alist)
               (cbor-tag? write-tag)
+              ; These all have O(n) complexity
+              (alist? write-alist)
+              (##proper-list? write-list)
               (else ((current-hook) buf item)))))
 
 (def current-encoder (make-parameter default-encoder))
@@ -110,6 +108,11 @@
     (write-positive-uint writer 2 (u8vector-length item))
     (writer.write item)))
 
+; Wrap a vector in a cbor tag so we can decode it back as a vector
+(def (wrap-vector writer item)
+  ; Tag 41 is for homogeneous array types: https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml
+  (write-tag-as (make-cbor-tag 41 item) write-vector))
+
 (def (write-vector writer item (encoder (current-encoder)))
   (using ((writer :- BufferedWriter)
           (item :~ vector?))
@@ -128,11 +131,11 @@
 (def (write-alist writer item (encoder (current-encoder)))
   (using ((writer :- BufferedWriter)
           (item :~ alist?))
-    (for-each (lambda (pair)
-                (encoder (car pair))
+    (for-each! item (lambda (pair)
+                (encoder writer (car pair))
                 (if (list? (cdr pair))
-                  (encoder (cadr pair))
-                  (encoder (cdr pair)))))
+                  (encoder writer (cadr pair))
+                  (encoder writer (cdr pair)))))
     (writer.write-u8 (data-item 7 31))))
 
 (def (write-string writer item)
@@ -160,8 +163,10 @@
   (using (writer :- BufferedWriter)
     (writer.write-u8 (data-item 7 23))))
 
+(def (write-tag-as writer item inner-encoder)
+  (using (item : cbor-tag)
+    (write-positive-uint writer 6 item.tag)
+    (inner-encoder writer item.item)))
+
 (def (write-tag writer item (encoder (current-encoder)))
-  (using ((writer :- BufferedWriter)
-          (item :- cbor-tag))
-    (write-positive-uint writer (item.tag))
-    (encoder item.item)))
+  (write-tag-as writer item encoder))

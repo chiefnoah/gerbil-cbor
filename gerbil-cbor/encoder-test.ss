@@ -4,7 +4,8 @@
   :std/test
   :std/sugar
   "encoder"
-  "decoder")
+  "decoder"
+  "util")
 (export #t)
 
 
@@ -20,6 +21,21 @@
    (check (simple-encode-decode arg) ? pred))
   ((_ arg)
    (check (simple-encode-decode arg) => arg)))
+
+(defstruct mycustomstruct (myfield otherfield)
+  final: #t)
+
+(def (custom-hook writer item)
+     (if (mycustomstruct? item)
+       (using (item : mycustomstruct)
+              ; wrap the item's fields in a cbor tag and encode it as normal
+              ((current-encoder) writer (make-cbor-tag 555555 [item.myfield item.otherfield])))
+       (error "Unknown type to encode" item)))
+
+(def (custom-tag-handler item)
+  (using (item : cbor-tag)
+    (match item
+      ((cbor-tag 555555 i) (make-mycustomstruct (car i) (cadr i))))))
 
 (def cbor-roundtrip-test
      (test-suite "cbor/roundtrip"
@@ -40,6 +56,11 @@
                  (test-case "string" (roundtrip-check "hello world!"))
                  (test-case "list" (roundtrip-check [1 2 3 4]))
                  (test-case "hash-table" (roundtrip-check (list->hash-table [["my" . "ht"]])))
-                 (test-case "vector" (roundtrip-check (vector 1 2 3)))
-
-))
+                 (test-case "vector" (check (simple-encode-decode (vector 1 2 3)) => [1 2 3]))
+                 (test-case "alist" (simple-encode-decode [["key" . "value"]]))
+                 (test-case "cbor tag with default hook" (check (simple-encode-decode (make-cbor-tag 123 "hello"))
+                                                                => "hello"))
+                 (test-case "custom type encode hook"
+                            (parameterize ((current-hook custom-hook)
+                                           (current-tag-handler custom-tag-handler))
+                              (simple-encode-decode (make-mycustomstruct 12345 #f))))))

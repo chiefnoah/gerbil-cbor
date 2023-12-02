@@ -1,5 +1,5 @@
 ; This module contains utilities for encoding/decoding CBOR messages
-(export data-item data-item/const)
+(export data-item data-item/const (struct-out cbor-tag))
 (module I
   (export #t)
   (def (data-item major-type arg)
@@ -18,3 +18,6 @@
                      (data-item (syntax->datum #'major-type)
                                 (syntax->datum #'arg))))
                    major-tag))))
+
+(defstruct cbor-tag (tag item)
+  final: #t)

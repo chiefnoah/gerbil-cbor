@@ -20,11 +20,14 @@
             (let* ((item (buffer.read-u8!))
                    (decode-method (vector-ref +unmarshal+ item)))
               (decode-method item buffer))))
+
 (def current-decoder (make-parameter default-decoder))
 
 ; The default tag handler strips the tag from the underlying value and returns it
-(def (default-tag-handler _ item)
-  item)
+(def (default-tag-handler item)
+  (using (item :- cbor-tag)
+    item.item))
+
 (def current-tag-handler (make-parameter default-tag-handler))
 
 (def (extract-raw-arg item buf)
@@ -199,7 +202,7 @@
 (def (read-tag item buf f)
   (let* ((tag-num (f item buf))
          (val ((current-decoder) buf)))
-    ((current-tag-handler) tag-num val)))
+    ((current-tag-handler) (make-cbor-tag tag-num val))))
 
 (def (read-simple item buf f)
   (match (f item buf)

@@ -2,7 +2,9 @@
         :std/io
         :std/format
         :std/text/utf8
-        "decoder")
+        :std/contract
+        "decoder"
+        "util")
 (export cbor-decoder-test)
 
 
@@ -57,12 +59,12 @@
                                    => #u8(#x30 #x31 #x32)))
                  (test-case "decode map"
                             (let* ((output (default-decoder
-                                           (open-buffered-reader #u8(#xa3 #x64 #x6b #x65 #x79
-                                                                     #x31 #x66 #x76 #x61 #x6c
-                                                                     #x75 #x65 #x31 #x02 #x03
-                                                                     #x83 #x01 #x02 #x03 #xa1
-                                                                     #x64 #x6b #x65 #x79 #x32
-                                                                     #x04))))
+                                             (open-buffered-reader #u8(#xa3 #x64 #x6b #x65 #x79
+                                                                       #x31 #x66 #x76 #x61 #x6c
+                                                                       #x75 #x65 #x31 #x02 #x03
+                                                                       #x83 #x01 #x02 #x03 #xa1
+                                                                       #x64 #x6b #x65 #x79 #x32
+                                                                       #x04))))
                                    (aslist (hash->list output)))
                               (check (assq 2 aslist) => [2 . 3])
                               (check (assoc "key1" aslist) => ["key1" . "value1"])
@@ -77,8 +79,9 @@
                                      (open-buffered-reader #u8(#xd8 #x7b #x19 #x1 #xc8)))
                                    => 456))
                  (test-case "decode tagged item custom"
-                            (parameterize ((current-tag-handler (lambda (tag item)
-                                                                         [tag . item])))
+                            (parameterize ((current-tag-handler (lambda (item)
+                                                                  (using (item :- cbor-tag)
+                                                                         [item.tag . item.item]))))
                               (check (default-decoder
                                        (open-buffered-reader #u8(#xd8 #x7b #x19 #x1
                                                                  #xc8))) => [123 . 456])))
