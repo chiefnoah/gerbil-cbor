@@ -6,14 +6,14 @@ Gerbil Scheme implementation of CBOR/[RFC
 ## Features
 
 - De(serialize) all native CBOR types
+- Custom encoder/decoder callbacks
 
 ## Planned Features
 
-- Custom encoder/decoder callbacks
-- Streaming of indefinite-length lists and maps via coroutines
 - Custom type tags for Lisp-ey goodness
 	- I plan to submit them to the IANA registry
-- CBOR Sequences ([RFC 8742](https://www.rfc-editor.org/rfc/rfc8742.html))
+- CBOR Sequences ([RFC 8742](https://www.rfc-editor.org/rfc/rfc8742.html)) with
+  streaming via coroutines/generators
 - Vector/typed-array handling ([RFC 8746](https://www.rfc-editor.org/rfc/rfc8746.html))
 - Tags for Date and Time ([RFC 8943](https://www.rfc-editor.org/rfc/rfc8943.html))
 - CDDL parser-generator ([RFC 8610](https://datatracker.ietf.org/doc/html/rfc8610))
