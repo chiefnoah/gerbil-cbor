@@ -34,3 +34,37 @@ that is understood by the default `encoder`. Alternatively, encode your type as 
 you encode won't magically be decoded on the other end; you *must* handle any
 `cbor-tag`s you encode when decoding, such as with a `tag-handler`.
 
+Here's an example of a simple encoder callback:
+
+```scheme
+(import
+  :std/contract
+  :std/io
+  :std/error
+  "gerbil-cbor/lib")
+
+(defstruct point (x y) final: #t)
+; As of this writing, this is an unassigned tag in the
+; [IANA CBOR Tag Registry](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml)
+(def POINT 60003)
+(def tag (make-cbor-tag POINT 123))
+
+(def mypoint (make-point 123 45.6))
+(def writer (open-buffered-writer #f))
+(def (tag-handler writer item)
+  ; the writer is *always* a `BufferedWriter`, otherwise the `encoder` application below
+  ; will fail before we get to this point.
+  (using (writer :- BufferedWriter)
+    (match item
+      ((? point?)
+       (using ((item :- point)
+               (tag (make-cbor-tag POINT [item.x item.y]) : cbor-tag))
+         ; encode point as a list of it's x, y values
+         (encoder writer tag)))
+      (else
+        (error "Don't know how to encode item" item)))))
+; use the current-hook parameter to encode our `point`.
+(parameterize ((current-hook tag-handler))
+ (encoder writer mypoint))
+
+```
