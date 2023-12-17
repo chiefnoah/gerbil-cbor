@@ -3,9 +3,7 @@
   :std/io
   :std/test
   :std/sugar
-  "encoder"
-  "decoder"
-  "util")
+  "lib")
 (export #t)
 
 

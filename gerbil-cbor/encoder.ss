@@ -2,13 +2,14 @@
   :std/sugar
   :std/misc/list
   :std/contract
-  "util"
   :std/io
   :std/misc/alist
   :std/srfi/19
   :std/misc/bytes
   :std/error
-  :std/text/utf8)
+  :std/text/utf8
+  "util")
+
 (export encoder current-hook)
 
 (defrule (match-encoder writer item (predicate encode) ... rest)
@@ -18,21 +19,21 @@
 (def current-hook #f)
 
 (def (encoder buf item)
-     (using (buf : BufferedWriter)
-            (match-encoder buf item
-              (number? write-number)
-              (boolean? write-bool)
-              (void? write-null)
-              ((cut eq? <> 'undefined) write-undefined)
-              (hash-table? write-hashmap)
-              (u8vector? write-u8vector)
-              (vector? write-vector)
-              (string? write-string)
-              (cbor-tag? write-tag)
-              ; These all have O(n) complexity
-              (alist? write-alist)
-              (##proper-list? write-list)
-              (else ((current-hook) buf item)))))
+  (using (buf : BufferedWriter)
+    (match-encoder buf item
+      (number? write-number)
+      (boolean? write-bool)
+      (void? write-null)
+      ((cut eq? <> 'undefined) write-undefined)
+      (hash-table? write-hashmap)
+      (u8vector? write-u8vector)
+      (vector? write-vector)
+      (string? write-string)
+      (cbor-tag? write-tag)
+      ; These all have O(n) complexity
+      (alist? write-alist)
+      (##proper-list? write-list)
+      (else ((current-hook) buf item)))))
 
 
 (def (default-hook writer item)
@@ -77,9 +78,7 @@
            (8 27)))))
 
 (def (write-number writer item)
-     (using ((writer :- BufferedWriter)
-             ; TODO: remove this when it's been tested thuroughly
-             (item :~ fixnum?))
+     (using (writer :- BufferedWriter)
             (cond
               ((and (integer? item) (positive? item) (fixnum? item))
                (write-positive-uint writer 0 item))
@@ -131,7 +130,7 @@
         (encoder writer key)
         (encoder writer value)) item)))
 
-(def (write-alist writer item )
+(def (write-alist writer item)
   (using ((writer :- BufferedWriter)
           (item :~ alist?))
     (for-each! item (lambda (pair)
