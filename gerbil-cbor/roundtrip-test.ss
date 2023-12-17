@@ -11,10 +11,10 @@
 
 (def (simple-encode-decode arg)
      (using (writer (open-buffered-writer #f) :- BufferedWriter)
-            (default-encoder writer arg)
+            (encoder writer arg)
             (let* ((buffer (get-buffer-output-u8vector writer))
                    (reader (open-buffered-reader buffer)))
-              (default-decoder reader))))
+              (decoder reader))))
 
 (defrules roundtrip-check ()
   ((_ arg pred)
@@ -29,7 +29,7 @@
      (if (mycustomstruct? item)
        (using (item : mycustomstruct)
               ; wrap the item's fields in a cbor tag and encode it as normal
-              ((current-encoder) writer (make-cbor-tag 555555 [item.myfield item.otherfield])))
+              (encoder writer (make-cbor-tag 555555 [item.myfield item.otherfield])))
        (error "Unknown type to encode" item)))
 
 (def (custom-tag-handler item)

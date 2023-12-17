@@ -9,23 +9,15 @@
   :std/misc/bytes
   :std/error
   :std/text/utf8)
-(export default-encoder current-encoder default-hook current-hook)
+(export encoder current-hook)
 
 (defrule (match-encoder writer item (predicate encode) ... rest)
   (match item
     ((? predicate) (encode writer item)) ... rest))
 
-(def (default-hook writer item (encoder (current-encoder)))
-     (using (writer :- BufferedWriter)
-            (match item
-                   ((? date?)
-                    (encoder (make-cbor-tag 0 (date->string item))))
-                   ; TODO: other types
-                   (else (error "Don't know how to serialize item: " item)))))
+(def current-hook #f)
 
-(def current-hook (make-parameter default-hook))
-
-(def (default-encoder buf item)
+(def (encoder buf item)
      (using (buf : BufferedWriter)
             (match-encoder buf item
               (number? write-number)
@@ -42,7 +34,16 @@
               (##proper-list? write-list)
               (else ((current-hook) buf item)))))
 
-(def current-encoder (make-parameter default-encoder))
+
+(def (default-hook writer item)
+  (using (writer :- BufferedWriter)
+    (match item
+           ((? date?)
+            (encoder (make-cbor-tag 0 (date->string item))))
+           ; TODO: other types
+           (else (error "Don't know how to serialize item: " item)))))
+
+(set! current-hook (make-parameter default-hook))
 
 (def MAXu8 255)
 (def MAXu16 65535)
@@ -70,10 +71,10 @@
        (if (fx< item 24)
          (writer.write-u8 (data-item major-type item))
          (match-for-int-size writer major-type item
-             (1 24)
-             (2 25)
-             (4 26)
-             (8 27)))))
+           (1 24)
+           (2 25)
+           (4 26)
+           (8 27)))))
 
 (def (write-number writer item)
      (using ((writer :- BufferedWriter)
@@ -93,18 +94,20 @@
               (else
                 (BUG write-number "This function should not be called with non-numbers" item)))))
 
-(def (write-list writer item (encoder (current-encoder)))
-  (using ((writer :- BufferedWriter)
-          ; this is probably O(n)
-          (item :~ ##proper-list?))
-    (writer.write-u8 (data-item 4 31))
-    (for-each (cut encoder writer <>) item)
-    ; terminate the indefinite sequence
-    (writer.write-u8 (data-item 7 31))))
+(def (write-list writer item)
+     (using
+       ((writer :- BufferedWriter)
+        ; this is probably O(n)
+        (item :~ ##proper-list?))
+       (writer.write-u8 (data-item 4 31))
+       (for-each (cut encoder writer <>) item)
+       ; terminate the indefinite sequence
+       (writer.write-u8 (data-item 7 31))))
 
 (def (write-u8vector writer item)
-  (using ((writer :- BufferedWriter)
-          (item :~ u8vector?))
+  (using
+    ((writer :- BufferedWriter)
+     (item :~ u8vector?))
     (write-positive-uint writer 2 (u8vector-length item))
     (writer.write item)))
 
@@ -113,13 +116,13 @@
   ; Tag 41 is for homogeneous array types: https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml
   (write-tag-as (make-cbor-tag 41 item) write-vector))
 
-(def (write-vector writer item (encoder (current-encoder)))
+(def (write-vector writer item)
   (using ((writer :- BufferedWriter)
           (item :~ vector?))
     (write-positive-uint writer 4 (vector-length item))
     (vector-for-each (cut encoder writer <>) item)))
 
-(def (write-hashmap writer item (encoder (current-encoder)))
+(def (write-hashmap writer item)
   (using ((writer :- BufferedWriter)
           (item :~ hash-table?))
     (write-positive-uint writer 5 (hash-length item))
@@ -128,14 +131,14 @@
         (encoder writer key)
         (encoder writer value)) item)))
 
-(def (write-alist writer item (encoder (current-encoder)))
+(def (write-alist writer item )
   (using ((writer :- BufferedWriter)
           (item :~ alist?))
     (for-each! item (lambda (pair)
-                (encoder writer (car pair))
-                (if (list? (cdr pair))
-                  (encoder writer (cadr pair))
-                  (encoder writer (cdr pair)))))
+                     (encoder writer (car pair))
+                     (if (list? (cdr pair))
+                       (encoder writer (cadr pair))
+                       (encoder writer (cdr pair)))))
     (writer.write-u8 (data-item 7 31))))
 
 (def (write-string writer item)
@@ -168,5 +171,5 @@
     (write-positive-uint writer 6 item.tag)
     (inner-encoder writer item.item)))
 
-(def (write-tag writer item (encoder (current-encoder)))
+(def (write-tag writer item)
   (write-tag-as writer item encoder))

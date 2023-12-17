@@ -5,23 +5,22 @@
         :std/format
         :std/misc/bytes
         :std/text/utf8
+        :std/error
         "util"
         (for-syntax "util")
         :std/io)
-(export default-decoder current-decoder current-tag-handler max-indefinite-item)
+(export decoder current-tag-handler max-indefinite-item)
 
 (def max-indefinite-item (make-parameter 1024))
 
 (def +unmarshal+ (make-vector 256 #f))
 
-(def (default-decoder buffer)
+(def (decoder buffer)
      (using (buffer : BufferedReader)
             ; read the first item
             (let* ((item (buffer.read-u8!))
                    (decode-method (vector-ref +unmarshal+ item)))
               (decode-method item buffer))))
-
-(def current-decoder (make-parameter default-decoder))
 
 ; The default tag handler strips the tag from the underlying value and returns it
 (def (default-tag-handler item)
@@ -65,17 +64,17 @@
 ; Reads a list from the buffered and decodes it recursively
 (def (read-list item buf f)
   (let f ((count (f item buf))
-          (item ((current-decoder) buf)))
+          (item (decoder buf)))
     (if (fx= 1 count)
       ; properly terminate the list
       (cons item '())
       (cons item (f (1- count)
-                    ((current-decoder) buf))))))
+                    (decoder buf))))))
 
 (def (read-indefinite-list item buf (count 0))
      (when (fx> count (max-indefinite-item))
        (error "Exceeded max indefinite item allocation of " (max-indefinite-item)))
-     (let (item ((current-decoder) buf))
+     (let (item (decoder buf))
        (if (eq? item 'BREAK)
          '()
          (cons item (read-indefinite-list item buf (1+ count))))))
@@ -84,23 +83,23 @@
 ; if there are duplicates, we overwrite any existing keys.
 (def (read-map item buf f (table (make-hash-table)))
      (let f ((count (1- (f item buf)))
-             (key ((current-decoder) buf))
-             (value ((current-decoder) buf)))
+             (key (decoder buf))
+             (value (decoder buf)))
        (begin
          (hash-put! table key value)
          (if (positive? count)
            (f (1- count)
-              ((current-decoder) buf)
-              ((current-decoder) buf))
+              (decoder buf)
+              (decoder buf))
            table))))
 
 (def (read-indefinite-map item buf (table (make-hash-table)) (count 0))
      (when (fx> count (max-indefinite-item))
        (error "Exceeded max indefinite item allocation of " (max-indefinite-item)))
-     (let (key ((current-decoder) buf))
+     (let (key (decoder buf))
        (if (not (eq? key 'BREAK))
          (begin
-           (hash-put! table key ((current-decoder) buf))
+           (hash-put! table key (decoder buf))
            (read-indefinite-map item buf table (1+ count)))
          table)))
 
@@ -201,7 +200,7 @@
 
 (def (read-tag item buf f)
   (let* ((tag-num (f item buf))
-         (val ((current-decoder) buf)))
+         (val (decoder buf)))
     ((current-tag-handler) (make-cbor-tag tag-num val))))
 
 (def (read-simple item buf f)
