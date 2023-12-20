@@ -8,6 +8,7 @@
   :std/misc/bytes
   :std/error
   :std/text/utf8
+  :std/srfi/1
   "util")
 
 (export encoder current-hook)
@@ -32,7 +33,7 @@
       (cbor-tag? write-tag)
       ; These all have O(n) complexity
       (alist? write-alist)
-      (##proper-list? write-list)
+      (proper-list? write-list)
       (else ((current-hook) buf item)))))
 
 
