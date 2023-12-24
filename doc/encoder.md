@@ -7,9 +7,22 @@ default behavior, otherwise an error will be raised.
 
 ## `encoder`
 
+```scheme
+(encoder buffered-writer item) ; => #!void
+```
+
 The `encoder` is the primary entry point to encoding a message using CBOR. It
 recursively walks any aggregate types and encodes them. Any types that it does not know
 how to encode by default, it attempts to use the `current-hook` function to encode.
+
+## `object->cbor`
+
+```scheme
+(def (object->cbor obj)) ; => u8vector
+```
+
+`object->cbor` is the same as `encoder` except returns an in-memory `u8vector` instead
+of taking in a `BufferedWriter` to write to.
 
 ## `current-hook`
 

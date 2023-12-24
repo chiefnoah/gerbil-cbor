@@ -14,6 +14,15 @@ default, but allows parameterizing and extending the decoder using the
 The `decoder` form takes in a `BufferedReader` and attempts to read from it, decoding
 until either the end of the CBOR item is reached or a malformed message is encountered.
 
+## `cbor->object`
+
+```scheme
+(def (cbor->object u8v)) ; => scheme object
+```
+
+`cbor-object` is the same as `decoder` but accepts a `u8vector` instead of a
+`BufferedReader` as input.
+
 ## `max-indefinite-item`
 
 This parameter controls how many items will be decoded when an indefinite list or map is
