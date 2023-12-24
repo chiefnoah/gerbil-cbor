@@ -4,7 +4,7 @@
   :std/error
   "../gerbil-cbor/lib")
 
-(defstruct point (x y) final: #t)
+(defstruct point (x y) final: #t equal: #t)
 ; As of this writing, this is an unassigned tag in the
 ; [IANA CBOR Tag Registry](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml)
 (def POINT 60003)
@@ -34,7 +34,7 @@
   (using (item :- cbor-tag)
     (match item.tag
       (POINT
-        (make-point (car item.item) (cadr item.item)))
+        (make-point (car item.value) (cadr item.value)))
       (else
         (error "Do not know how to decode item." item)))))
 
@@ -43,8 +43,6 @@
        (decoder buffer)))
 (using ((newpoint : point)
         (mypoint : point))
-       (displayln "Equal? " (and
-                              (equal? mypoint.x newpoint.x)
-                              (equal? mypoint.y newpoint.y))))
+       (displayln "Equal? " (equal? mypoint newpoint)))
 
 
