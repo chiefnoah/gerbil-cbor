@@ -26,7 +26,7 @@
         (error "Don't know how to encode item" item)))))
 ; use the current-hook parameter to encode our `point`.
 (parameterize ((current-hook tag-hook))
- (encoder writer mypoint))
+  (encoder writer mypoint))
 
 (def buffer (open-buffered-reader (get-buffer-output-u8vector writer)))
 ; Decoder example

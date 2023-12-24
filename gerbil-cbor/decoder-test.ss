@@ -81,7 +81,7 @@
                  (test-case "decode tagged item custom"
                             (parameterize ((current-tag-handler (lambda (item)
                                                                   (using (item :- cbor-tag)
-                                                                         [item.tag . item.item]))))
+                                                                         [item.tag . item.value]))))
                               (check (decoder
                                        (open-buffered-reader #u8(#xd8 #x7b #x19 #x1
                                                                  #xc8))) => [123 . 456])))

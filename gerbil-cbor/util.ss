@@ -19,5 +19,5 @@
                                 (syntax->datum #'arg))))
                    major-tag))))
 
-(defstruct cbor-tag (tag item)
+(defstruct cbor-tag (tag value)
   final: #t)

@@ -11,7 +11,11 @@
   :std/srfi/1
   "util")
 
-(export encoder current-hook)
+(export encoder current-hook object->cbor)
+
+(def (object->cbor obj)
+  (using (writer (open-buffered-writer #f) :- BufferedWriter)
+    (encoder writer obj)))
 
 (defrule (match-encoder writer item (predicate encode) ... rest)
   (match item
@@ -169,7 +173,7 @@
 (def (write-tag-as writer item inner-encoder)
   (using (item : cbor-tag)
     (write-positive-uint writer 6 item.tag)
-    (inner-encoder writer item.item)))
+    (inner-encoder writer item.value)))
 
 (def (write-tag writer item)
   (write-tag-as writer item encoder))

@@ -13,7 +13,9 @@ how to encode by default, it attempts to use the `current-hook` function to enco
 
 ## `current-hook`
 
-```scheme (hook writer item) => #!void ```
+```scheme
+(hook writer item) => #!void
+```
 
 The `current-hook` is a parameter function that accepts a `BufferedWriter` and an
 arbitrary item representing an item that the `encoder` does not know how to encode. The

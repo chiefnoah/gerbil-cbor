@@ -67,7 +67,7 @@ See [example.ss](example.ss) for a complete executable example.
   (using (item :- cbor-tag)
     (match item.tag
       (POINT
-        (make-point (car item.item) (cadr item.item)))
+        (make-point (car item.value) (cadr item.value)))
       (else
         (error "Do not know how to decode item." item)))))
 

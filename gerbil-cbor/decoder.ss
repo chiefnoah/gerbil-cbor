@@ -15,17 +15,21 @@
 
 (def +unmarshal+ (make-vector 256 #f))
 
-(def (decoder buffer)
-     (using (buffer : BufferedReader)
+(def (cbor->object u8v)
+  (using (reader (open-buffered-reader u8v) :- BufferedReader)
+    (decoder reader)))
+
+(def (decoder reader)
+     (using (reader : BufferedReader)
             ; read the first item
-            (let* ((item (buffer.read-u8!))
+            (let* ((item (reader.read-u8!))
                    (decode-method (vector-ref +unmarshal+ item)))
-              (decode-method item buffer))))
+              (decode-method item reader))))
 
 ; The default tag handler strips the tag from the underlying value and returns it
 (def (default-tag-handler item)
   (using (item :- cbor-tag)
-    item.item))
+    item.value))
 
 (def current-tag-handler (make-parameter default-tag-handler))
 
