@@ -19,7 +19,7 @@
     (match item
       ((? point?)
        (using ((item :- point)
-               (tag (make-cbor-tag POINT [item.x item.y]) : cbor-tag))
+               (tag (make-cbor-tag POINT [item.x item.y]) :- cbor-tag))
          ; encode point as a list of it's x, y values
          (encoder writer tag)))
       (else

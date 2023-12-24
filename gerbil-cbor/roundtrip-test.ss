@@ -9,10 +9,12 @@
 
 (def (simple-encode-decode arg)
      (using (writer (open-buffered-writer #f) :- BufferedWriter)
-            (encoder writer arg)
-            (let* ((buffer (get-buffer-output-u8vector writer))
-                   (reader (open-buffered-reader buffer)))
-              (decoder reader))))
+       (let* ((written (encoder writer arg))
+              (buffer (get-buffer-output-u8vector writer))
+              (reader (open-buffered-reader buffer)))
+         ; check that the length of the 
+         (check (u8vector-length buffer) => written)
+         (decoder reader))))
 
 (defrules roundtrip-check ()
   ((_ arg pred)

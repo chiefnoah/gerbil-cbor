@@ -8,12 +8,13 @@ default behavior, otherwise an error will be raised.
 ## `encoder`
 
 ```scheme
-(encoder buffered-writer item) ; => #!void
+(encoder buffered-writer item) ; => c
 ```
 
 The `encoder` is the primary entry point to encoding a message using CBOR. It
-recursively walks any aggregate types and encodes them. Any types that it does not know
-how to encode by default, it attempts to use the `current-hook` function to encode.
+recursively walks any aggregate types and encodes them, returning the number of bytes
+written. Any types that it does not know how to encode by default, it attempts to use
+the `current-hook` function to encode.
 
 ## `object->cbor`
 
@@ -27,17 +28,15 @@ of taking in a `BufferedWriter` to write to.
 ## `current-hook`
 
 ```scheme
-(hook writer item) => #!void
+(hook writer item) ; => c
 ```
 
 The `current-hook` is a parameter function that accepts a `BufferedWriter` and an
 arbitrary item representing an item that the `encoder` does not know how to encode. The
 responsibility of `current-hook` is to attempt to encode `item` and write the resulting
-CBOR formatted bytes to `writer`. If the hook implementation does not know how to encode
-`item`, it should raise a `error`. The default tag implementation can encode `date?`
-types using well-known CBOR tag 0.
-
-It's return value is ignored.
+CBOR formatted bytes to `writer` and return the number of bytes written. If the hook
+implementation does not know how to encode `item`, it should raise a `error`. The
+default tag implementation can encode `date?` types using well-known CBOR tag 0.
 
 ### Tips for encoding your custom types
 
@@ -72,7 +71,7 @@ Here's an example of a simple encoder callback:
     (match item
       ((? point?)
        (using ((item :- point)
-               (tag (make-cbor-tag POINT [item.x item.y]) : cbor-tag))
+               (tag (make-cbor-tag POINT [item.x item.y]) :- cbor-tag))
          ; encode point as a list of it's x, y values
          (encoder writer tag)))
       (else
