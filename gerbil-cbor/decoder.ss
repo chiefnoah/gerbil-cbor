@@ -9,14 +9,15 @@
         "util"
         (for-syntax "util")
         :std/io)
-(export decoder current-tag-handler max-indefinite-item)
+(export decoder current-tag-handler max-indefinite-item cbor->object)
 
 (def max-indefinite-item (make-parameter 1024))
 
 (def +unmarshal+ (make-vector 256 #f))
 
 (def (cbor->object u8v)
-  (using (reader (open-buffered-reader u8v) :- BufferedReader)
+  (using ((u8v :~ u8vector?)
+          (reader (open-buffered-reader u8v) :- BufferedReader))
     (decoder reader)))
 
 (def (decoder reader)

@@ -15,7 +15,8 @@
 
 (def (object->cbor obj)
   (using (writer (open-buffered-writer #f) :- BufferedWriter)
-    (encoder writer obj)))
+    (encoder writer obj)
+    (get-buffer-output-u8vector writer)))
 
 (defrule (match-encoder writer item (predicate encode) ... rest)
   (match item
