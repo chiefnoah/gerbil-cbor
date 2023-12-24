@@ -13,7 +13,7 @@
   :std/srfi/1
   "util")
 
-(export encoder current-hook object->cbor)
+(export (prefix-out encoder cbor-) current-hook object->cbor)
 
 (def (object->cbor obj)
   (using (writer (open-buffered-writer #f) :- BufferedWriter)

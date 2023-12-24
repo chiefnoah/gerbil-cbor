@@ -9,7 +9,7 @@
         "util"
         (for-syntax "util")
         :std/io)
-(export decoder current-tag-handler max-indefinite-item cbor->object)
+(export (prefix-out decoder cbor-) current-tag-handler max-indefinite-item cbor->object)
 
 (def max-indefinite-item (make-parameter 1024))
 

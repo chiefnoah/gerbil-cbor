@@ -5,8 +5,8 @@
 
 (export
   ; encoder
-  encoder current-hook object->cbor
+  cbor-encoder current-hook object->cbor
   ; decoder
-  decoder current-tag-handler max-indefinite-item cbor->object
+  cbor-decoder current-tag-handler max-indefinite-item cbor->object
   ; util
   (struct-out cbor-tag))

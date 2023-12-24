@@ -1,11 +1,11 @@
 # CBOR Decoder
 
-The `decoder` for CBOR decoding all primative CBOR types into plain Scheme objects by
+The `cbor-decoder` for CBOR decoding all primative CBOR types into plain Scheme objects by
 default, but allows parameterizing and extending the decoder using the
 `current-tag-handler` parameter.
 
 
-## `decoder`
+## `cbor-decoder`
 
 ```scheme
 (decoder buffer) ; => objects
@@ -20,7 +20,7 @@ until either the end of the CBOR item is reached or a malformed message is encou
 (def (cbor->object u8v)) ; => scheme object
 ```
 
-`cbor-object` is the same as `decoder` but accepts a `u8vector` instead of a
+`cbor-object` is the same as `cbor-decoder` but accepts a `u8vector` instead of a
 `BufferedReader` as input.
 
 ## `max-indefinite-item`
@@ -82,7 +82,7 @@ See [example.ss](example.ss) for a complete executable example.
 
 (def newpoint
      (parameterize ((current-tag-handler tag-handler))
-       (decoder buffer)))
+       (cbor-decoder buffer)))
 (using ((newpoint : point)
         (mypoint : point))
        (displayln "Equal? " (and
