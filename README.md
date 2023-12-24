@@ -8,7 +8,7 @@ Gerbil Scheme implementation of CBOR/[RFC
 - De(serialize) all native CBOR types
 - Custom encoder/decoder callbacks
 
-## I just want to see the code
+## I just want to see the function signatures
 
 ```scheme
 (encoder buffered-writer obj) ; => #!void
