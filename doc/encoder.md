@@ -1,9 +1,9 @@
 # CBOR Encoder
 
-The `encoder` for CBOR handle simple Scheme objects such as vectors, lists,
-numeric types, booleans, strings, and bytes as you would expect. Custom types such as
-structs, records, and objects must make use of the `current-hook` parameter to
-override the default behavior, otherwise an error will be raised.
+The `encoder` for CBOR handles simple Scheme objects such as vectors, lists, numeric
+types, booleans, strings, and bytes as you would expect. Custom types such as structs,
+records, and objects must make use of the `current-hook` parameter to override the
+default behavior, otherwise an error will be raised.
 
 ## `encoder`
 
@@ -13,9 +13,7 @@ how to encode by default, it attempts to use the `current-hook` function to enco
 
 ## `current-hook`
 
-```scheme
-(hook writer item) => #!void
-```
+```scheme (hook writer item) => #!void ```
 
 The `current-hook` is a parameter function that accepts a `BufferedWriter` and an
 arbitrary item representing an item that the `encoder` does not know how to encode. The
@@ -37,6 +35,7 @@ you encode won't magically be decoded on the other end; you *must* handle any
 Here's an example of a simple encoder callback:
 
 ```scheme
+
 (import
   :std/contract
   :std/io
@@ -64,7 +63,7 @@ Here's an example of a simple encoder callback:
       (else
         (error "Don't know how to encode item" item)))))
 ; use the current-hook parameter to encode our `point`.
-(parameterize ((current-hook tag-handler))
+(parameterize ((current-hook tag-hook))
  (encoder writer mypoint))
 
 ```
